@@ -1,10 +1,12 @@
-#include <ncurses.h>
+#include "LibpcapCapture.hpp"
 
-int main() {
-    initscr();
-    printw("Hello World");
-    refresh();
-    getch();
-    endwin();
+int main(int argc, char *argv[]) {
+
+    LibpcapCapture libpcapCapture;
+
+    libpcapCapture.setFilter("tcp");
+
+    libpcapCapture.startCapture();
+
     return 0;
 }
