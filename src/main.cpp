@@ -1,12 +1,8 @@
-#include "LibpcapCapture.hpp"
+#include "TuiDisplay.hpp"
 
 int main(int argc, char *argv[]) {
 
-    LibpcapCapture libpcapCapture;
-
-    // libpcapCapture.setFilter("tcp or udp");
-
-    libpcapCapture.startCapture();
+    TuiDisplay tui;
 
     return 0;
 }
