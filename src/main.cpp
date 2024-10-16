@@ -4,7 +4,7 @@ int main(int argc, char *argv[]) {
 
     LibpcapCapture libpcapCapture;
 
-    libpcapCapture.setFilter("tcp");
+    // libpcapCapture.setFilter("tcp or udp");
 
     libpcapCapture.startCapture();
 
