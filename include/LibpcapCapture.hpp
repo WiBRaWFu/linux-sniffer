@@ -2,9 +2,7 @@
 #define LIBPCAP_CAPTURE_HPP
 
 #include "PacketCapture.hpp"
-#include <mutex>
-#include <pcap.h>
-#include <queue>
+#include <pcap/pcap.h>
 #include <thread>
 #include <unordered_map>
 

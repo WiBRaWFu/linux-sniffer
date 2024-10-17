@@ -2,6 +2,7 @@
 #define TUI_DISPLAY_HPP
 
 #include "PacketCapture.hpp"
+#include <cdk/cdk.h>
 #include <memory>
 #include <ncurses.h>
 
@@ -10,23 +11,20 @@ public:
     TuiDisplay();
     ~TuiDisplay();
 
-    // 初始化界面
     void init();
-
-    // 更新并显示数据包信息
     void update();
-
-    // 关闭界面
     void close();
 
 private:
     std::unique_ptr<PacketCapture> cap;
 
-    void drawHeader();    // 绘制界面头部
-    void drawPacketList();// 绘制包列表
+    void drawHeader();
+    void drawPacketList();
 
-    WINDOW *headerWin;// 头部窗口
-    WINDOW *packetWin;// 数据包窗口
+    WINDOW *headerWin;
+    WINDOW *packetWin;
+
+    int winHeight, winWidth;
 };
 
 #endif

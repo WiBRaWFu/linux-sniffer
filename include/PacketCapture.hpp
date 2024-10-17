@@ -2,8 +2,8 @@
 #define PACKET_CAPTURE_HPP
 
 #include <mutex>
-#include <queue>
 #include <string>
+#include <vector>
 
 struct Packet {
     std::string src_mac;
@@ -27,22 +27,22 @@ public:
 
     virtual ~PacketCapture() {}
 
-    static void push(Packet packet) {
-        std::lock_guard<std::mutex> lock(mtx);
-        packets.push(packet);
-    }
+    // static void push(Packet packet) {
+    //     std::lock_guard<std::mutex> lock(mtx);
+    //     packets.push(packet);
+    // }
 
-    static bool pop(Packet &packet) {
-        std::lock_guard<std::mutex> lock(mtx);
-        if (!packets.empty()) {
-            packet = packets.front();
-            packets.pop();
-            return true;
-        }
-        return false;
-    }
+    // static bool pop(Packet &packet) {
+    //     std::lock_guard<std::mutex> lock(mtx);
+    //     if (!packets.empty()) {
+    //         packet = packets.front();
+    //         packets.pop();
+    //         return true;
+    //     }
+    //     return false;
+    // }
 
-    static std::queue<Packet> packets;
+    static std::vector<Packet> packets;
     static std::mutex mtx;
 };
 

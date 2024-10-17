@@ -3,12 +3,12 @@
 #include <cassert>
 #include <cstdlib>
 #include <iostream>
+#include <mutex>
 #include <netinet/ether.h>
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
-#include <pcap/pcap.h>
 #include <string>
 #include <utility>
 
@@ -61,15 +61,14 @@ void print_device_info(const pcap_if_t *device) {
     }
 }
 
-std::queue<Packet> PacketCapture::packets;
+std::vector<Packet> PacketCapture::packets;
 std::mutex PacketCapture::mtx;
 
 void LibpcapCapture::packet_handler(u_char *user_data, const struct pcap_pkthdr *packet_header, const u_char *packet_body) {
-    std::cout << "-----------------------------\n";
+    // std::cout << "-----------------------------\n";
 
-    std::cout << "Captured a packet with length: " << packet_header->len << " bytes\n";
+    // std::cout << "Captured a packet with length: " << packet_header->len << " bytes\n";
 
-    std::queue<Packet> *pkt_q = reinterpret_cast<std::queue<Packet> *>(user_data);
     Packet pkt;
 
     // parse Ethernet header
@@ -88,8 +87,8 @@ void LibpcapCapture::packet_handler(u_char *user_data, const struct pcap_pkthdr 
 
     pkt.src_mac = src_mac;
     pkt.dst_mac = dst_mac;
-    std::cout << "Source MAC: " << src_mac << "\n";
-    std::cout << "Destination MAC: " << dst_mac << "\n";
+    // std::cout << "Source MAC: " << src_mac << "\n";
+    // std::cout << "Destination MAC: " << dst_mac << "\n";
 
     // check for IP or ARP packets
     if (ntohs(eth_header->ether_type) == ETHERTYPE_IP) {
@@ -103,41 +102,41 @@ void LibpcapCapture::packet_handler(u_char *user_data, const struct pcap_pkthdr 
 
         pkt.src_ip = src_ip;
         pkt.dst_ip = dst_ip;
-        std::cout << "Source IP: " << src_ip << "\n";
-        std::cout << "Destination IP: " << dst_ip << "\n";
+        // std::cout << "Source IP: " << src_ip << "\n";
+        // std::cout << "Destination IP: " << dst_ip << "\n";
 
         // check for TCP or UDP packets
         if (ip_header->ip_p == IPPROTO_TCP) {
             const struct tcphdr *tcp_header = (struct tcphdr *) (packet_body + sizeof(struct ether_header) + (ip_header->ip_hl * 4));
             pkt.protocol = "tcp";
-            std::cout << "Protocol: TCP\n";
+            // std::cout << "Protocol: TCP\n";
             pkt.src_port = ntohs(tcp_header->source);
-            std::cout << "Source Port: " << ntohs(tcp_header->source) << "\n";
+            // std::cout << "Source Port: " << ntohs(tcp_header->source) << "\n";
             pkt.dst_port = ntohs(tcp_header->dest);
-            std::cout << "Destination Port: " << ntohs(tcp_header->dest) << "\n";
+            // std::cout << "Destination Port: " << ntohs(tcp_header->dest) << "\n";
         } else if (ip_header->ip_p == IPPROTO_UDP) {
             const struct udphdr *udp_header = (struct udphdr *) (packet_body + sizeof(struct ether_header) + (ip_header->ip_hl * 4));
             pkt.protocol = "udp";
-            std::cout << "Protocol: UDP\n";
+            // std::cout << "Protocol: UDP\n";
             pkt.src_port = ntohs(udp_header->source);
-            std::cout << "Source Port: " << ntohs(udp_header->source) << "\n";
+            // std::cout << "Source Port: " << ntohs(udp_header->source) << "\n";
             pkt.src_port = ntohs(udp_header->dest);
-            std::cout << "Destination Port: " << ntohs(udp_header->dest) << "\n";
+            // std::cout << "Destination Port: " << ntohs(udp_header->dest) << "\n";
         } else if (ip_header->ip_p == IPPROTO_ICMP) {
             // parse ICMP packet
             const struct icmphdr *icmp_header = (struct icmphdr *) (packet_body + sizeof(struct ether_header) + (ip_header->ip_hl * 4));
             pkt.protocol = "icmp";
-            std::cout << "Protocol: ICMP\n";
+            // std::cout << "Protocol: ICMP\n";
             pkt.icmp_type = (unsigned int) icmp_header->type;
-            std::cout << "ICMP Type: " << (unsigned int) icmp_header->type << "\n";
+            // std::cout << "ICMP Type: " << (unsigned int) icmp_header->type << "\n";
             pkt.icmp_code = (unsigned int) icmp_header->code;
-            std::cout << "ICMP Code: " << (unsigned int) icmp_header->code << "\n";
+            // std::cout << "ICMP Code: " << (unsigned int) icmp_header->code << "\n";
 
             // check if it's an echo request or reply (used in ping)
             if (icmp_header->type == ICMP_ECHO) {
-                std::cout << "ICMP Message: Echo Request\n";
+                // std::cout << "ICMP Message: Echo Request\n";
             } else if (icmp_header->type == ICMP_ECHOREPLY) {
-                std::cout << "ICMP Message: Echo Reply\n";
+                // std::cout << "ICMP Message: Echo Reply\n";
             }
         }
     } else if (ntohs(eth_header->ether_type) == ETHERTYPE_ARP) {
@@ -149,15 +148,16 @@ void LibpcapCapture::packet_handler(u_char *user_data, const struct pcap_pkthdr 
         inet_ntop(AF_INET, arp_header->arp_tpa, dst_ip, INET_ADDRSTRLEN);
 
         pkt.protocol = "arp";
-        std::cout << "Protocol: ARP\n";
+        // std::cout << "Protocol: ARP\n";
         pkt.src_ip = src_ip;
-        std::cout << "Source IP: " << src_ip << "\n";
+        // std::cout << "Source IP: " << src_ip << "\n";
         pkt.dst_ip = dst_ip;
-        std::cout << "Destination IP: " << dst_ip << "\n";
+        // std::cout << "Destination IP: " << dst_ip << "\n";
     }
 
-    push(pkt);
-    std::cout << "-----------------------------\n";
+    std::lock_guard<std::mutex> lock(mtx);
+    packets.push_back(pkt);
+    // std::cout << "-----------------------------\n";
 }
 
 LibpcapCapture::LibpcapCapture() {
@@ -171,7 +171,7 @@ LibpcapCapture::LibpcapCapture() {
     // show the interface list
     int num_device = 0;
     for (pcap_if_t *d = devices; d != nullptr; d = d->next) {
-        print_device_info(d);
+        // print_device_info(d);
         device_list.insert(std::make_pair(num_device, d));
         num_device++;
     }
@@ -201,9 +201,9 @@ LibpcapCapture::~LibpcapCapture() {
 void LibpcapCapture::startCapture() {
     // start the packet capture loop
     captureThread = std::thread([&]() {
-        pcap_loop(handle, 0, packet_handler, (u_char *) &packets);
+        pcap_loop(handle, 0, packet_handler, nullptr);
     });
-    captureThread.join();
+    captureThread.detach();
 }
 
 void LibpcapCapture::stopCapture() {}
