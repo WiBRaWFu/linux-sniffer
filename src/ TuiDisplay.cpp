@@ -1,16 +1,12 @@
 #include "LibpcapCapture.hpp"
-#include "PacketCapture.hpp"
 #include "TuiDisplay.hpp"
 #include "scroll.h"
-#include <mutex>
+#include <memory>
 #include <ncurses.h>
 #include <string>
 
-TuiDisplay::TuiDisplay() {
-    headerWin = nullptr;
-    packetWin = nullptr;
-
-    cap = std::make_unique<LibpcapCapture>();
+TuiDisplay::TuiDisplay() : headerWin(nullptr), packetWin(nullptr) {
+    capture = std::make_shared<LibpcapCapture>();
 }
 
 TuiDisplay::~TuiDisplay() {
@@ -37,7 +33,7 @@ void TuiDisplay::init() {
     wrefresh(packetWin);
 
     // cap.setFilter("tcp or udp");
-    cap->startCapture();
+    capture->startCapture();
 }
 
 void TuiDisplay::update() {
@@ -55,7 +51,7 @@ void TuiDisplay::close() {
 }
 
 void TuiDisplay::drawHeader() {
-    std::string title = "Packet Capture";
+    std::string title = "Packet Sniffer";
     mvwprintw(headerWin, 1, (winWidth - title.size()) / 2, "%s", title.c_str());
 }
 
@@ -82,35 +78,14 @@ void TuiDisplay::drawPacketList() {
             FALSE);
 
     while (true) {
-        cap->mtx.lock();
-        // 收集所有包的信息
-        std::vector<std::string> info_list;
-        for (auto &pkt: cap->packets) {
-            std::string info;
-            info += pkt.src_mac + " ";
-            info += pkt.dst_mac + " ";
-            info += pkt.src_ip + " ";
-            info += pkt.dst_ip + " ";
-            info += pkt.protocol + " ";
-            if (pkt.protocol == "tcp" || pkt.protocol == "udp") {
-                info += "[SRC-PORT]" + std::to_string(pkt.src_port) + " ";
-                info += "[DST_PORT]" + std::to_string(pkt.dst_port) + " ";
-            } else if (pkt.protocol == "icmp") {
-                info += "[TYPE]" + std::to_string(pkt.icmp_type) + " ";
-                info += "[CODE]" + std::to_string(pkt.icmp_code) + " ";
-            }
-            info_list.push_back(info);
-        }
-        cap->mtx.unlock();
+        auto info = capture->processor->getInfo();
 
         std::vector<char *> chlist;
-        for (auto &str: info_list) {
+        for (auto &str: info) {
             chlist.push_back((char *) str.c_str());
         }
 
         setCDKScrollItems(scrollList, (CDK_CSTRING2) chlist.data(), chlist.size(), TRUE);
-        drawCDKScroll(scrollList, TRUE);
-        // activateCDKScroll(scrollList, nullptr);
-        usleep(500000);
+        activateCDKScroll(scrollList, nullptr);
     }
 }

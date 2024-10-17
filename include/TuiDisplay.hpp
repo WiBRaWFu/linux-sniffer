@@ -16,7 +16,7 @@ public:
     void close();
 
 private:
-    std::unique_ptr<PacketCapture> cap;
+    std::shared_ptr<PacketCapture> capture;
 
     void drawHeader();
     void drawPacketList();
