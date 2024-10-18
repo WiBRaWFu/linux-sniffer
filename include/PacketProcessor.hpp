@@ -36,6 +36,20 @@ struct IPv4Header {
     uint32_t dest_ip;       // 目标IP地址
 };
 
+struct ICMPHeader {
+    uint8_t type;     // ICMP 消息类型 (如 8 表示回显请求, 0 表示回显应答)
+    uint8_t code;     // ICMP 代码 (与类型结合使用)
+    uint16_t checksum;// ICMP 校验和
+    union {
+        struct {
+            uint16_t identifier;// 标识符 (通常用于区分回显请求和应答)
+            uint16_t sequence;  // 序列号 (通常用于区分回显请求和应答)
+        } echo;                 // 回显请求和应答
+        uint32_t gateway;       // 网关地址 (用于重定向消息)
+        uint32_t unused;        // 通用的未使用字段
+    } data;                     // 根据类型的不同，数据字段可能有所不同
+};
+
 struct TCPHeader {
     uint16_t src_port;  // 源端口
     uint16_t dest_port; // 目标端口
@@ -63,9 +77,10 @@ struct Packet {
         ARPHeader arp_header;// ARP头
     };
     union {
-        TCPHeader tcp_header;// TCP头
-        UDPHeader udp_header;// UDP头
-    } transport_layer;       // 传输层协议
+        ICMPHeader icmp_header;//ICMP头
+        TCPHeader tcp_header;  // TCP头
+        UDPHeader udp_header;  // UDP头
+    };
 };
 
 class PacketProcessor {
@@ -73,7 +88,7 @@ public:
     PacketProcessor();
     ~PacketProcessor();
 
-    std::vector<std::string> getInfo() {
+    std::vector<std::vector<std::pair<std::string, std::string>>> getInfo() {
         return info_cache;
     };
     void process();
@@ -82,7 +97,7 @@ public:
     std::vector<Packet> packet_cache;
 
     std::mutex info_mtx;
-    std::vector<std::string> info_cache;
+    std::vector<std::vector<std::pair<std::string, std::string>>> info_cache;
 };
 
 #endif

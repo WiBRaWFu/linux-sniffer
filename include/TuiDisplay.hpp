@@ -16,14 +16,10 @@ public:
     void close();
 
 private:
+    void draw();
+
     std::shared_ptr<PacketCapture> capture;
-
-    void drawHeader();
-    void drawPacketList();
-
-    WINDOW *headerWin;
     WINDOW *packetWin;
-
     int winHeight, winWidth;
 };
 
