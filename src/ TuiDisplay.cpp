@@ -1,13 +1,7 @@
 #include "LibpcapCapture.hpp"
 #include "TuiDisplay.hpp"
-#include <cdk.h>
-#include <cstdio>
-#include <entry.h>
-#include <memory>
-#include <ncurses.h>
-#include <scroll.h>
 
-TuiDisplay::TuiDisplay() : packetWin(nullptr) {
+TuiDisplay::TuiDisplay() {
     capture = std::make_shared<LibpcapCapture>();
 }
 
@@ -16,18 +10,15 @@ TuiDisplay::~TuiDisplay() {
 }
 
 void TuiDisplay::init() {
-    initscr();
-    cbreak();
+    cdk_screen = initCDKScreen(nullptr);
+    initCDKColor();
+
     noecho();
+    cbreak();
     curs_set(0);
-    keypad(stdscr, TRUE);
-    getmaxyx(stdscr, winHeight, winWidth);
-
-    // create WINDOW
-    packetWin = newwin(winHeight, winWidth, 0, 0);
-
-    // cap.setFilter("tcp or udp");
-    capture->startCapture();
+    cdk_screen->window->_notimeout = true;
+    nodelay(cdk_screen->window, true);
+    keypad(cdk_screen->window, TRUE);
 }
 
 void TuiDisplay::update() {
@@ -35,76 +26,79 @@ void TuiDisplay::update() {
 }
 
 void TuiDisplay::close() {
-    if (packetWin) {
-        delwin(packetWin);
-    }
-    endwin();
+    destroyCDKScreen(cdk_screen);
+    endCDK();
 }
 
 void TuiDisplay::draw() {
-    CDKSCREEN *cdkScreen = initCDKScreen(packetWin);
-    initCDKColor();
-    cdkScreen->window->_notimeout = true;
-    nodelay(cdkScreen->window, true);
-    keypad(cdkScreen->window, TRUE);
+    // input filter
+    cdk_filter_input = newCDKEntry(
+            cdk_screen, LEFT, TOP,
+            "<C></B/31>[SET FILTER]<!31>", "</B>Expression:",
+            A_DIM, ' ',
+            vLMIXED,
+            0,
+            0, 20,
+            TRUE, TRUE);
 
-    // filter input example
-    // CDKENTRY *input = newCDKEntry(
-    //         cdkScreen, LEFT, TOP,
-    //         "<C>filter", "expression:",
-    //         A_BOLD, ' ',
-    //         vLMIXED,
-    //         0,
-    //         0, 10,
-    //         TRUE, TRUE);
-    // activateCDKEntry(input, nullptr);
+    setCDKEntryHorizontalChar(cdk_filter_input, '-');
+    setCDKEntryULChar(cdk_filter_input, '+');
+    setCDKEntryURChar(cdk_filter_input, '+');
+    setCDKEntryLLChar(cdk_filter_input, '+');
+    setCDKEntryLRChar(cdk_filter_input, '+');
 
-    // packet list
-    CDKSCROLL *scrollList = newCDKScroll(
-            cdkScreen,
-            LEFT,
-            TOP,
-            RIGHT,
-            0,
-            0,
-            "<C></B/31>[ Packet Sniffer ]<!31>",
-            nullptr,
-            0,
+    // set filter
+    char *filter = activateCDKEntry(cdk_filter_input, nullptr);
+    if (filter)
+        capture->setFilter(std::string(filter));
+    capture->startCapture();
+
+    // destroy
+    destroyCDKEntry(cdk_filter_input);
+
+    // list packets
+    cdk_scroll_list = newCDKScroll(
+            cdk_screen, LEFT, TOP, RIGHT,
+            0, 0,
+            "<C></B/31>[PACKET SNIFFER]<!31>",
+            nullptr, 0,
             TRUE,
             A_STANDOUT,
-            TRUE,
-            FALSE);
+            TRUE, FALSE);
+
+    setCDKScrollHorizontalChar(cdk_scroll_list, '-');
+    setCDKScrollULChar(cdk_scroll_list, '+');
+    setCDKScrollURChar(cdk_scroll_list, '+');
+    setCDKScrollLLChar(cdk_scroll_list, '+');
+    setCDKScrollLRChar(cdk_scroll_list, '+');
+    setCDKScrollBackgroundColor(cdk_scroll_list, "</26>");
 
     while (true) {
+        // get info cache
         capture->processor->info_mtx.lock();
         auto info_cache = capture->processor->getInfo();
         capture->processor->info_mtx.unlock();
 
+        // format the short info
         std::vector<char *> short_info = {};
         for (auto &info: info_cache) {
             std::string key;
             for (int i = 0; i < 5; i++) {
-                char *buffer = new char[32];
                 auto &p = info[i];
-                sprintf(buffer, "%-20s", p.second.c_str());
-                key += std::string(buffer);
-                delete[] buffer;
+                p.second.resize(20, ' ');
+                key += p.second;
             }
-            char *temp = new char[128];
-            sprintf(temp, "%s", key.c_str());
-            short_info.push_back(temp);
+            char *key_ptr = new char[128];
+            sprintf(key_ptr, "%s", key.c_str());
+            short_info.push_back(key_ptr);
         }
 
-        setCDKScrollItems(scrollList, (CDK_CSTRING2) short_info.data(), short_info.size(), TRUE);
-        setCDKScrollHorizontalChar(scrollList, '-');
-        setCDKScrollULChar(scrollList, '+');
-        setCDKScrollURChar(scrollList, '+');
-        setCDKScrollLLChar(scrollList, '+');
-        setCDKScrollLRChar(scrollList, '+');
-        setCDKScrollBackgroundColor(scrollList, "</26>");
-        int idx = activateCDKScroll(scrollList, nullptr);
+        // show list
+        setCDKScrollItems(cdk_scroll_list, (CDK_CSTRING2) short_info.data(), short_info.size(), TRUE);
+        int idx = activateCDKScroll(cdk_scroll_list, nullptr);
 
-        if (scrollList->exitType == vNORMAL && !short_info.empty()) {
+        if (cdk_scroll_list->exitType == vNORMAL && !short_info.empty()) {
+            // show the detail
             auto &info = info_cache[idx];
             int n = info.size();
             char **lines = new char *[n];
@@ -116,7 +110,7 @@ void TuiDisplay::draw() {
                 lines[i] = line;
             }
 
-            popupLabel(cdkScreen, lines, n);
+            popupLabel(cdk_screen, lines, n);
 
             // free
             for (int i = 0; i < short_info.size(); i++) {
@@ -126,6 +120,9 @@ void TuiDisplay::draw() {
                 delete[] lines[i];
             }
             delete[] lines;
+        } else if (cdk_scroll_list->exitType == vESCAPE_HIT) {
+            break;
         }
     }
+    destroyCDKScroll(cdk_scroll_list);
 }

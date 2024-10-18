@@ -3,8 +3,10 @@
 
 #include "PacketCapture.hpp"
 #include <cdk/cdk.h>
+#include <entry.h>
 #include <memory>
 #include <ncurses.h>
+#include <scroll.h>
 
 class TuiDisplay {
 public:
@@ -19,8 +21,9 @@ private:
     void draw();
 
     std::shared_ptr<PacketCapture> capture;
-    WINDOW *packetWin;
-    int winHeight, winWidth;
+    CDKSCREEN *cdk_screen;
+    CDKENTRY *cdk_filter_input;
+    CDKSCROLL *cdk_scroll_list;
 };
 
 #endif
