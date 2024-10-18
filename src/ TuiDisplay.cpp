@@ -69,7 +69,7 @@ void TuiDisplay::drawPacketList() {
             RIGHT,
             0,
             0,
-            "SRC-MAC    DST-MAC    SRC-IP    DST-IP    PROTOCOL",
+            "NO    SRC-MAC    DST-MAC    SRC-IP    DST-IP    PROTOCOL",
             nullptr,
             0,
             TRUE,
@@ -78,12 +78,14 @@ void TuiDisplay::drawPacketList() {
             FALSE);
 
     while (true) {
+        capture->processor->info_mtx.lock();
         auto info = capture->processor->getInfo();
 
-        std::vector<char *> chlist;
+        std::vector<char *> chlist = {};
         for (auto &str: info) {
             chlist.push_back((char *) str.c_str());
         }
+        capture->processor->info_mtx.unlock();
 
         setCDKScrollItems(scrollList, (CDK_CSTRING2) chlist.data(), chlist.size(), TRUE);
         activateCDKScroll(scrollList, nullptr);

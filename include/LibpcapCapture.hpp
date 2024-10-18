@@ -16,7 +16,7 @@ public:
     void setFilter(const std::string &filter) override;
 
 private:
-    static void packet_handler(u_char *user_data, const struct pcap_pkthdr *packet_header, const u_char *packet_body);
+    friend void packet_handler(u_char *user_data, const struct pcap_pkthdr *packet_header, const u_char *packet_body);
 
     pcap_if_t *devices;
     pcap_t *handle;

@@ -11,6 +11,18 @@ struct EthernetHeader {
     uint16_t ethertype;
 };
 
+struct ARPHeader {
+    uint16_t hardware_type;// 硬件类型（通常为1表示以太网）
+    uint16_t protocol_type;// 协议类型（例如 0x0800 表示 IPv4）
+    uint8_t hardware_size; // 硬件地址长度（通常为6，表示MAC地址长度）
+    uint8_t protocol_size; // 协议地址长度（通常为4，表示IPv4地址长度）
+    uint16_t opcode;       // 操作码（1表示ARP请求，2表示ARP回复）
+    uint8_t sender_mac[6]; // 发送方硬件地址（MAC地址）
+    uint32_t sender_ip;    // 发送方协议地址（IP地址）
+    uint8_t target_mac[6]; // 接收方硬件地址（MAC地址）
+    uint32_t target_ip;    // 接收方协议地址（IP地址）
+};
+
 struct IPv4Header {
     uint8_t version_ihl;    // 版本和头长度
     uint8_t tos;            // 服务类型
@@ -43,19 +55,7 @@ struct UDPHeader {
     uint16_t checksum; // 校验和
 };
 
-struct ARPHeader {
-    uint16_t hardware_type;// 硬件类型（通常为1表示以太网）
-    uint16_t protocol_type;// 协议类型（例如 0x0800 表示 IPv4）
-    uint8_t hardware_size; // 硬件地址长度（通常为6，表示MAC地址长度）
-    uint8_t protocol_size; // 协议地址长度（通常为4，表示IPv4地址长度）
-    uint16_t opcode;       // 操作码（1表示ARP请求，2表示ARP回复）
-    uint8_t sender_mac[6]; // 发送方硬件地址（MAC地址）
-    uint32_t sender_ip;    // 发送方协议地址（IP地址）
-    uint8_t target_mac[6]; // 接收方硬件地址（MAC地址）
-    uint32_t target_ip;    // 接收方协议地址（IP地址）
-};
-
-struct Packet_ex {
+struct Packet {
     uint32_t size;
     EthernetHeader eth_header;// 以太网头
     union {
@@ -70,10 +70,19 @@ struct Packet_ex {
 
 class PacketProcessor {
 public:
-    std::vector<std::string> getInfo();
+    PacketProcessor();
+    ~PacketProcessor();
 
-    std::mutex mtx;
-    std::vector<Packet_ex> packet_list;
+    std::vector<std::string> getInfo() {
+        return info_cache;
+    };
+    void process();
+
+    std::mutex packet_mtx;
+    std::vector<Packet> packet_cache;
+
+    std::mutex info_mtx;
+    std::vector<std::string> info_cache;
 };
 
 #endif
