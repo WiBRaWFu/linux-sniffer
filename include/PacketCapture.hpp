@@ -3,7 +3,6 @@
 
 #include "PacketProcessor.hpp"
 #include <memory>
-#include <string>
 
 class PacketCapture {
 public:

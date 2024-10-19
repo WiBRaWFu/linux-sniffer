@@ -1,9 +1,10 @@
 #ifndef TUI_DISPLAY_HPP
 #define TUI_DISPLAY_HPP
 
-#include "PacketCapture.hpp"
+#include "LibpcapCapture.hpp"
 #include <cdk/cdk.h>
 #include <entry.h>
+#include <itemlist.h>
 #include <memory>
 #include <ncurses.h>
 #include <scroll.h>
@@ -20,8 +21,13 @@ public:
 private:
     void draw();
 
-    std::shared_ptr<PacketCapture> capture;
+    char **vectorToCharArray(const std::vector<std::string> &vec);
+    void freeCharArray(char **charArray, size_t size);
+
+    std::shared_ptr<LibpcapCapture> capture;
+
     CDKSCREEN *cdk_screen;
+    CDKITEMLIST *cdk_interface_list;
     CDKENTRY *cdk_filter_input;
     CDKSCROLL *cdk_scroll_list;
 };

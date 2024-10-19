@@ -1,11 +1,8 @@
 #include "LibpcapCapture.hpp"
 #include "PacketCapture.hpp"
 #include "PacketProcessor.hpp"
-#include <cassert>
-#include <cstdlib>
 #include <cstring>
 #include <iostream>
-#include <memory>
 #include <net/ethernet.h>
 #include <netinet/ether.h>
 #include <netinet/if_ether.h>
@@ -14,8 +11,7 @@
 #include <netinet/ip_icmp.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
-#include <string>
-#include <utility>
+#include <thread>
 
 
 void print_sockaddr(struct sockaddr *sa) {
@@ -106,46 +102,19 @@ void packet_handler(u_char *user_data, const struct pcap_pkthdr *packet_header, 
 std::shared_ptr<PacketProcessor> PacketCapture::processor = std::make_shared<PacketProcessor>();
 
 LibpcapCapture::LibpcapCapture() {
-    // get the local network interfaces
-    char errbuf[PCAP_ERRBUF_SIZE];
-    if (pcap_findalldevs(&devices, errbuf) == -1) {
-        std::cerr << "Error finding devices: " << errbuf << std::endl;
-        exit(EXIT_FAILURE);
-    }
-
-    // show the interface list
-    int num_device = 0;
-    for (pcap_if_t *d = devices; d != nullptr; d = d->next) {
-        // print_device_info(d);
-        device_list.insert(std::make_pair(num_device, d));
-        num_device++;
-    }
-
-    // open device for live capture
-    std::cout << "the length fo device list: " << num_device << " , input the index:" << std::endl;
-    int idx_device = -1;
-    std::cin >> idx_device;
-    assert(device_list.find(idx_device) != device_list.end());
-
-    handle = pcap_open_live(device_list[idx_device]->name, BUFSIZ, 1, 1000, errbuf);
-    if (handle == nullptr) {
-        std::cerr << "Couldn't open device: " << errbuf << "\n";
-        pcap_freealldevs(devices);
-        exit(EXIT_FAILURE);
-    }
+    findDevices();
 }
 
 LibpcapCapture::~LibpcapCapture() {
     // close the handle
     pcap_close(handle);
-
     // free all devices
     pcap_freealldevs(devices);
 }
 
 void LibpcapCapture::startCapture() {
     // start the packet capture loop
-    captureThread = std::thread([&]() {
+    std::thread captureThread = std::thread([&]() {
         pcap_loop(handle, 0, packet_handler, nullptr);
     });
     captureThread.detach();
@@ -164,3 +133,34 @@ void LibpcapCapture::setFilter(const std::string &filter) {
         exit(EXIT_FAILURE);
     }
 }
+
+void LibpcapCapture::findDevices() {
+    // get the local network interfaces
+    char errbuf[PCAP_ERRBUF_SIZE];
+    if (pcap_findalldevs(&devices, errbuf) == -1) {
+        std::cerr << "Error finding devices: " << errbuf << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    for (pcap_if_t *d = devices; d != nullptr; d = d->next) {
+        device_list.push_back(d);
+    }
+}
+
+void LibpcapCapture::openDevice(std::string &name) {
+    char errbuf[PCAP_ERRBUF_SIZE];
+    handle = pcap_open_live(name.c_str(), BUFSIZ, 1, 1000, errbuf);
+    if (handle == nullptr) {
+        std::cerr << "Couldn't open device: " << errbuf << "\n";
+        pcap_freealldevs(devices);
+        exit(EXIT_FAILURE);
+    }
+}
+
+std::vector<std::string> LibpcapCapture::getAllDeviceName() {
+    std::vector<std::string> names;
+    for (auto &d: device_list) {
+        names.push_back(std::string(d->name));
+    }
+    return names;
+};

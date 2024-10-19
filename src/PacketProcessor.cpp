@@ -1,13 +1,11 @@
 #include "PacketProcessor.hpp"
 #include <arpa/inet.h>
-#include <mutex>
 #include <netinet/ether.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
-#include <string>
 #include <thread>
 #include <utility>
 
@@ -29,6 +27,8 @@ void PacketProcessor::process() {
         for (int i = len; i < packet_cache.size(); i++) {
             Packet &packet = packet_cache[i];
             std::vector<std::pair<std::string, std::string>> packet_info;
+
+            packet_info.emplace_back(std::make_pair("<LEN>", std::to_string(packet.size)));
 
             char src_mac[18], dst_mac[18];
             sprintf(src_mac, "%02x:%02x:%02x:%02x:%02x:%02x",

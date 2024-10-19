@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <mutex>
+#include <string>
 #include <vector>
 
 struct EthernetHeader {
@@ -88,10 +89,10 @@ public:
     PacketProcessor();
     ~PacketProcessor();
 
+    void process();
     std::vector<std::vector<std::pair<std::string, std::string>>> getInfo() {
         return info_cache;
     };
-    void process();
 
     std::mutex packet_mtx;
     std::vector<Packet> packet_cache;
