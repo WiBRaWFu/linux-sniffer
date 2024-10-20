@@ -1,6 +1,8 @@
 #include "LibpcapCapture.hpp"
 #include "TuiDisplay.hpp"
+#include "scroll.h"
 #include <cstring>
+#include <ncurses.h>
 
 TuiDisplay::TuiDisplay() {
     capture = std::make_shared<LibpcapCapture>();
@@ -92,6 +94,7 @@ void TuiDisplay::draw() {
     setCDKScrollLRChar(cdk_scroll_list, '+');
     setCDKScrollBackgroundColor(cdk_scroll_list, "</26>");
 
+    int cur_item_idx = -1;
     while (true) {
         // get info cache
         capture->processor->info_mtx.lock();
@@ -102,7 +105,7 @@ void TuiDisplay::draw() {
         std::vector<std::string> key_info_list;
         for (auto &info: info_cache) {
             std::string key_info;
-            for (int i = 1; i < 6; i++) {
+            for (int i = 2; i < 7; i++) {
                 auto str = info[i].second;
                 str.resize(20, ' ');
                 key_info += str;
@@ -111,11 +114,13 @@ void TuiDisplay::draw() {
         }
         auto item_list_1 = vectorToCharArray(key_info_list);
         setCDKScrollItems(cdk_scroll_list, item_list_1, key_info_list.size(), TRUE);
-        int idx = activateCDKScroll(cdk_scroll_list, nullptr);
+        if (cur_item_idx >= 0)
+            setCDKScrollCurrentItem(cdk_scroll_list, cur_item_idx);
+        cur_item_idx = activateCDKScroll(cdk_scroll_list, nullptr);
 
         if (cdk_scroll_list->exitType == vNORMAL && !key_info_list.empty()) {
             // show the detail
-            auto &info = info_cache[idx];
+            auto &info = info_cache[cur_item_idx];
             std::vector<std::string> detail_info_list;
             for (auto &p: info) {
                 auto key = p.first;

@@ -6,6 +6,7 @@
 #include <netinet/ip_icmp.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
+#include <string>
 #include <thread>
 #include <utility>
 
@@ -28,7 +29,8 @@ void PacketProcessor::process() {
             Packet &packet = packet_cache[i];
             std::vector<std::pair<std::string, std::string>> packet_info;
 
-            packet_info.emplace_back(std::make_pair("<LEN>", std::to_string(packet.size)));
+            packet_info.emplace_back(std::make_pair("<CAP-LEN>", std::to_string(packet.cap_size)));
+            packet_info.emplace_back(std::make_pair("<ORI-LEN>", std::to_string(packet.cap_size)));
 
             char src_mac[18], dst_mac[18];
             sprintf(src_mac, "%02x:%02x:%02x:%02x:%02x:%02x",
@@ -58,6 +60,12 @@ void PacketProcessor::process() {
 
                     int src_port = ntohs(packet.tcp_header.src_port);
                     int dst_port = ntohs(packet.tcp_header.dest_port);
+
+                    if (src_port == 80 || dst_port == 80)
+                        packet_info.emplace_back(std::make_pair("<PROTOCOL>", "http"));
+                    if (src_port == 443 || dst_port == 443)
+                        packet_info.emplace_back(std::make_pair("<PROTOCOL>", "https"));
+                    packet_info.emplace_back(std::make_pair("<PAYLOAD>", std::to_string(packet.payload_size)));
 
                     packet_info.emplace_back(std::make_pair("<SRC-PORT>", std::to_string(src_port)));
                     packet_info.emplace_back(std::make_pair("<DST-PORT>", std::to_string(dst_port)));

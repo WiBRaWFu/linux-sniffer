@@ -71,7 +71,6 @@ struct UDPHeader {
 };
 
 struct Packet {
-    uint32_t size;
     EthernetHeader eth_header;// 以太网头
     union {
         IPv4Header ip_header;// IPv4头
@@ -82,6 +81,10 @@ struct Packet {
         TCPHeader tcp_header;  // TCP头
         UDPHeader udp_header;  // UDP头
     };
+    char *payload;
+    uint32_t payload_size;
+    uint32_t cap_size;
+    uint32_t origin_size;
 };
 
 class PacketProcessor {

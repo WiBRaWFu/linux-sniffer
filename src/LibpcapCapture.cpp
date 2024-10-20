@@ -64,7 +64,8 @@ void print_device_info(const pcap_if_t *device) {
 void packet_handler(u_char *user_data, const struct pcap_pkthdr *packet_header, const u_char *packet_body) {
     // save to self define struct
     Packet packet;
-    packet.size = packet_header->len;
+    packet.cap_size = packet_header->caplen;
+    packet.origin_size = packet_header->len;
 
     // 1. 解析以太网头
     const struct ether_header *eth_header = (struct ether_header *) packet_body;
@@ -81,6 +82,26 @@ void packet_handler(u_char *user_data, const struct pcap_pkthdr *packet_header, 
         if (ip_header->ip_p == IPPROTO_TCP) {
             const struct tcphdr *tcp_header = (struct tcphdr *) (packet_body + sizeof(EthernetHeader) + ip_header->ip_hl * 4);
             std::memcpy(&packet.tcp_header, tcp_header, sizeof(TCPHeader));
+
+            // payload
+            // 计算TCP负载的起始位置
+            int tcp_header_length = tcp_header->th_off * 4;
+            int ip_header_length = ip_header->ip_hl * 4;
+            int headers_length = sizeof(EthernetHeader) + ip_header_length + tcp_header_length;
+
+            // 计算负载长度
+            int payload_length = packet_header->caplen - headers_length;
+
+            // 如果有负载
+            if (payload_length > 0) {
+                // 分配内存并拷贝TCP负载到Packet的payload字段
+                packet.payload = (char *) malloc(payload_length);
+                std::memcpy(packet.payload, packet_body + headers_length, payload_length);
+                packet.payload_size = payload_length;// 存储负载长度
+            } else {
+                packet.payload = nullptr;
+                packet.payload_size = 0;
+            }
         } else if (ip_header->ip_p == IPPROTO_UDP) {
             const struct udphdr *udp_header = (struct udphdr *) (packet_body + sizeof(EthernetHeader) + ip_header->ip_hl * 4);
             std::memcpy(&packet.udp_header, udp_header, sizeof(UDPHeader));
@@ -149,6 +170,7 @@ void LibpcapCapture::findDevices() {
 
 void LibpcapCapture::openDevice(std::string &name) {
     char errbuf[PCAP_ERRBUF_SIZE];
+    // promiscuous mode
     handle = pcap_open_live(name.c_str(), BUFSIZ, 1, 1000, errbuf);
     if (handle == nullptr) {
         std::cerr << "Couldn't open device: " << errbuf << "\n";
