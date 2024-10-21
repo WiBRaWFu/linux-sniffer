@@ -1,10 +1,6 @@
 #include "LibpcapCapture.hpp"
 #include "TuiDisplay.hpp"
-#include "cdk.h"
-#include "scroll.h"
-#include "swindow.h"
 #include <cstring>
-#include <ncurses.h>
 
 TuiDisplay::TuiDisplay() {
     capture = std::make_shared<LibpcapCapture>();
@@ -158,14 +154,12 @@ void TuiDisplay::draw() {
 }
 
 char **TuiDisplay::vectorToCharArray(const std::vector<std::string> &vec) {
-    // 分配char*数组的空间
     char **charArray = new char *[vec.size()];
 
-    // 将vector中的每个字符串转换为C风格的字符串
     for (size_t i = 0; i < vec.size(); ++i) {
-        // 为每个字符串分配空间，包含结尾的 '\0'
+        // allocate space for each string, including the terminating '\0'
         charArray[i] = new char[vec[i].size() + 1];
-        std::strcpy(charArray[i], vec[i].c_str());// 复制字符串内容
+        std::strcpy(charArray[i], vec[i].c_str());
     }
 
     return charArray;
@@ -173,7 +167,7 @@ char **TuiDisplay::vectorToCharArray(const std::vector<std::string> &vec) {
 
 void TuiDisplay::freeCharArray(char **charArray, size_t size) {
     for (size_t i = 0; i < size; ++i) {
-        delete[] charArray[i];// 释放每个字符串的内存
+        delete[] charArray[i];
     }
-    delete[] charArray;// 释放数组本身的内存
+    delete[] charArray;
 }

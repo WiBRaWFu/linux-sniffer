@@ -67,33 +67,30 @@ void packet_handler(u_char *user_data, const struct pcap_pkthdr *packet_header, 
     packet.cap_size = packet_header->caplen;
     packet.origin_size = packet_header->len;
 
-    // 1. 解析以太网头
+    // 1. parsing Ethernet header
     const struct ether_header *eth_header = (struct ether_header *) packet_body;
     std::memcpy(&packet.eth_header, eth_header, sizeof(EthernetHeader));
 
-    // 2. 根据以太类型解析不同的协议
+    // 2. parsing different protocols
     uint16_t ethertype = ntohs(eth_header->ether_type);
     if (ethertype == ETHERTYPE_IP) {
-        // IPv4数据包
+        // IPv4
         const struct ip *ip_header = (struct ip *) (packet_body + sizeof(EthernetHeader));
         std::memcpy(&packet.ip_header, ip_header, sizeof(IPv4Header));
 
-        // 3. 根据IP协议字段判断是TCP还是UDP
+        // 3. TCP or UDP
         if (ip_header->ip_p == IPPROTO_TCP) {
             const struct tcphdr *tcp_header = (struct tcphdr *) (packet_body + sizeof(EthernetHeader) + ip_header->ip_hl * 4);
             std::memcpy(&packet.tcp_header, tcp_header, sizeof(TCPHeader));
-            // 计算TCP负载的起始位置
+            // tcp payload
             int tcp_header_length = tcp_header->th_off * 4;
             int ip_header_length = ip_header->ip_hl * 4;
             int headers_length = sizeof(EthernetHeader) + ip_header_length + tcp_header_length;
-            // 计算负载长度
             int payload_length = packet_header->caplen - headers_length;
-            // 如果有负载
             if (payload_length > 0) {
-                // 分配内存并拷贝TCP负载到Packet的payload字段
                 packet.payload = (char *) malloc(payload_length);
                 std::memcpy(packet.payload, packet_body + headers_length, payload_length);
-                packet.payload_size = payload_length;// 存储负载长度
+                packet.payload_size = payload_length;
             } else {
                 packet.payload = nullptr;
                 packet.payload_size = 0;
@@ -101,12 +98,26 @@ void packet_handler(u_char *user_data, const struct pcap_pkthdr *packet_header, 
         } else if (ip_header->ip_p == IPPROTO_UDP) {
             const struct udphdr *udp_header = (struct udphdr *) (packet_body + sizeof(EthernetHeader) + ip_header->ip_hl * 4);
             std::memcpy(&packet.udp_header, udp_header, sizeof(UDPHeader));
+            // udp payload
+            int ip_header_length = ip_header->ip_hl * 4;
+            int udp_header_length = sizeof(struct udphdr);
+            int headers_length = sizeof(EthernetHeader) + ip_header_length + udp_header_length;
+            int payload_length = packet_header->caplen - headers_length;
+            if (payload_length > 0) {
+                packet.payload = (char *) malloc(payload_length);
+                std::memcpy(packet.payload, packet_body + headers_length, payload_length);
+                packet.payload_size = payload_length;
+            } else {
+                packet.payload = nullptr;
+                packet.payload_size = 0;
+            }
         } else if (ip_header->ip_p == IPPROTO_ICMP) {
+            // ICMP
             const struct icmphdr *icmp_header = (struct icmphdr *) (packet_body + sizeof(EthernetHeader) + (ip_header->ip_hl * 4));
             std::memcpy(&packet.icmp_header, icmp_header, sizeof(ICMPHeader));
         }
     } else if (ethertype == ETHERTYPE_ARP) {
-        // ARP数据包
+        // ARP
         const struct ether_arp *arp_header = (struct ether_arp *) (packet_body + sizeof(EthernetHeader));
         std::memcpy(&packet.arp_header, arp_header, sizeof(ARPHeader));
     }

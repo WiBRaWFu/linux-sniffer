@@ -8,6 +8,7 @@
 #include <memory>
 #include <ncurses.h>
 #include <scroll.h>
+#include <swindow.h>
 
 #define KEY_INFO_WIDTH 20
 #define DETAIL_KEY_WIDTH 25
