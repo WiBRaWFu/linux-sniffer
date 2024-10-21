@@ -9,6 +9,9 @@
 #include <ncurses.h>
 #include <scroll.h>
 
+#define KEY_INFO_WIDTH 20
+#define DETAIL_KEY_WIDTH 25
+
 class TuiDisplay {
 public:
     TuiDisplay();
@@ -30,6 +33,7 @@ private:
     CDKITEMLIST *cdk_interface_list;
     CDKENTRY *cdk_filter_input;
     CDKSCROLL *cdk_scroll_list;
+    CDKSWINDOW *cdk_scroll_window;
 };
 
 #endif

@@ -1,6 +1,8 @@
 #include "LibpcapCapture.hpp"
 #include "TuiDisplay.hpp"
+#include "cdk.h"
 #include "scroll.h"
+#include "swindow.h"
 #include <cstring>
 #include <ncurses.h>
 
@@ -94,52 +96,64 @@ void TuiDisplay::draw() {
     setCDKScrollLRChar(cdk_scroll_list, '+');
     setCDKScrollBackgroundColor(cdk_scroll_list, "</26>");
 
-    int cur_item_idx = -1;
+    cdk_scroll_window = newCDKSwindow(
+            cdk_screen,
+            CENTER, CENTER,
+            0, 0,
+            "<C></B/31>[ Detail Window ]<!31>", 100,
+            true, true);
+    setCDKSwindowHorizontalChar(cdk_scroll_window, '-');
+    setCDKSwindowULChar(cdk_scroll_window, '+');
+    setCDKSwindowURChar(cdk_scroll_window, '+');
+    setCDKSwindowLLChar(cdk_scroll_window, '+');
+    setCDKSwindowLRChar(cdk_scroll_window, '+');
+    setCDKSwindowBackgroundColor(cdk_scroll_window, "</26>");
+
+    int cur_packet_idx = -1;
     while (true) {
         // get info cache
         capture->processor->info_mtx.lock();
         auto info_cache = capture->processor->getInfo();
         capture->processor->info_mtx.unlock();
 
-        // format the short info
+        // format the key info
         std::vector<std::string> key_info_list;
         for (auto &info: info_cache) {
             std::string key_info;
             for (int i = 2; i < 7; i++) {
                 auto str = info[i].second;
-                str.resize(20, ' ');
+                str.resize(KEY_INFO_WIDTH, ' ');
                 key_info += str;
             }
             key_info_list.push_back(key_info);
         }
-        auto item_list_1 = vectorToCharArray(key_info_list);
-        setCDKScrollItems(cdk_scroll_list, item_list_1, key_info_list.size(), TRUE);
-        if (cur_item_idx >= 0)
-            setCDKScrollCurrentItem(cdk_scroll_list, cur_item_idx);
-        cur_item_idx = activateCDKScroll(cdk_scroll_list, nullptr);
+        auto key_item_list = vectorToCharArray(key_info_list);
+        setCDKScrollItems(cdk_scroll_list, key_item_list, key_info_list.size(), TRUE);
+        if (cur_packet_idx >= 0)
+            setCDKScrollCurrentItem(cdk_scroll_list, cur_packet_idx);
+        cur_packet_idx = activateCDKScroll(cdk_scroll_list, nullptr);
 
         if (cdk_scroll_list->exitType == vNORMAL && !key_info_list.empty()) {
+            cleanCDKSwindow(cdk_scroll_window);
+
             // show the detail
-            auto &info = info_cache[cur_item_idx];
-            std::vector<std::string> detail_info_list;
+            auto &info = info_cache[cur_packet_idx];
             for (auto &p: info) {
                 auto key = p.first;
-                key.resize(15, ' ');
+                key.resize(DETAIL_KEY_WIDTH, ' ');
                 auto value = p.second;
-                value.resize(20, ' ');
-                std::string detail_info = std::string("<#DI>") + key + value;
-                detail_info_list.push_back(detail_info);
+                std::string detail_item = key + value;
+                addCDKSwindow(cdk_scroll_window, detail_item.c_str(), BOTTOM);
             }
-            auto item_list_2 = vectorToCharArray(detail_info_list);
-            popupLabel(cdk_screen, item_list_2, detail_info_list.size());
+            activateCDKSwindow(cdk_scroll_window, nullptr);
 
             // free
-            freeCharArray(item_list_1, key_info_list.size());
-            freeCharArray(item_list_2, detail_info_list.size());
+            freeCharArray(key_item_list, key_info_list.size());
         } else if (cdk_scroll_list->exitType == vESCAPE_HIT) {
             break;
         }
     }
+    destroyCDKSwindow(cdk_scroll_window);
     destroyCDKScroll(cdk_scroll_list);
 }
 

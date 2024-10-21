@@ -82,16 +82,12 @@ void packet_handler(u_char *user_data, const struct pcap_pkthdr *packet_header, 
         if (ip_header->ip_p == IPPROTO_TCP) {
             const struct tcphdr *tcp_header = (struct tcphdr *) (packet_body + sizeof(EthernetHeader) + ip_header->ip_hl * 4);
             std::memcpy(&packet.tcp_header, tcp_header, sizeof(TCPHeader));
-
-            // payload
             // 计算TCP负载的起始位置
             int tcp_header_length = tcp_header->th_off * 4;
             int ip_header_length = ip_header->ip_hl * 4;
             int headers_length = sizeof(EthernetHeader) + ip_header_length + tcp_header_length;
-
             // 计算负载长度
             int payload_length = packet_header->caplen - headers_length;
-
             // 如果有负载
             if (payload_length > 0) {
                 // 分配内存并拷贝TCP负载到Packet的payload字段
