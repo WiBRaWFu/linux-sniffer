@@ -1,5 +1,6 @@
 #include "LibpcapCapture.hpp"
 #include "TuiDisplay.hpp"
+#include <algorithm>
 #include <cstring>
 
 TuiDisplay::TuiDisplay() {
@@ -113,16 +114,27 @@ void TuiDisplay::draw() {
         capture->processor->info_mtx.unlock();
 
         // format the key info
+        std::vector<std::string> keys = {
+                "<Source MAC>",
+                "<Destination MAC>",
+                "<Source IP>",
+                "<Destination IP>",
+                "<Protocol>"};
+
         std::vector<std::string> key_info_list;
         for (auto &info: info_cache) {
             std::string key_info;
-            for (int i = 2; i < 7; i++) {
-                auto str = info[i].second;
-                str.resize(KEY_INFO_WIDTH, ' ');
-                key_info += str;
+            for (auto &key: keys) {
+                auto it = find_if(info.begin(), info.end(), [&key](const std::pair<std::string, std::string> &element) {
+                    return element.first == key;
+                });
+                auto value = it->second;
+                value.resize(KEY_INFO_WIDTH, ' ');
+                key_info += value;
             }
             key_info_list.push_back(key_info);
         }
+
         auto key_item_list = vectorToCharArray(key_info_list);
         setCDKScrollItems(cdk_scroll_list, key_item_list, key_info_list.size(), TRUE);
         if (cur_packet_idx >= 0)

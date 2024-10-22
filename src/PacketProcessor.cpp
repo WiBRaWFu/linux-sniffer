@@ -6,6 +6,7 @@
 #include <netinet/ip_icmp.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
+#include <regex>
 #include <sstream>
 #include <thread>
 #include <utility>
@@ -28,7 +29,10 @@ std::vector<std::pair<std::string, std::string>> parse_http(const char *payload,
     // get body
     size_t body_start_pos = header_end_pos + 4;// 跳过 "\r\n\r\n"
     std::string body = data.substr(body_start_pos);
-    res.push_back({"<HTTP Body>", body});
+    // resolve conflicts between HTML and CDK string attribute commands
+    // IMPROVE: currently it is a simple replacement
+    auto processed_body = std::regex_replace(body, std::regex("</"), "< /");
+    res.push_back({"<HTTP Body>", processed_body});
 
     return res;
 }
@@ -99,6 +103,104 @@ std::vector<std::pair<std::string, std::string>> parse_ntp(const char *packet_bo
     return result;
 }
 
+std::vector<std::pair<std::string, std::string>> parse_dns(const char *data) {
+    std::vector<std::pair<std::string, std::string>> result;
+
+    // DNS header
+    const uint16_t *header = reinterpret_cast<const uint16_t *>(data);
+
+    uint16_t id = ntohs(header[0]);// Identification
+    result.push_back({"<ID>", std::to_string(id)});
+
+    uint16_t flags = ntohs(header[1]);// Flags
+    result.push_back({"<Flags>", std::to_string(flags)});
+
+    uint16_t qdCount = ntohs(header[2]);// Number of questions
+    result.push_back({"<QDCOUNT>", std::to_string(qdCount)});
+
+    uint16_t anCount = ntohs(header[3]);// Number of answers
+    result.push_back({"<ANCOUNT>", std::to_string(anCount)});
+
+    uint16_t nsCount = ntohs(header[4]);// Number of authority records
+    result.push_back({"<NSCOUNT>", std::to_string(nsCount)});
+
+    uint16_t arCount = ntohs(header[5]);// Number of additional records
+    result.push_back({"<ARCOUNT>", std::to_string(arCount)});
+
+    // DNS Question
+    const char *ptr = data + 12;// skip header (12 bytes)
+
+    // QNAME
+    std::stringstream qnameStream;
+    while (true) {
+        uint8_t labelLen = *ptr++;
+        if (labelLen == 0) break;// end
+        qnameStream << std::string(ptr, labelLen) << ".";
+        ptr += labelLen;
+    }
+    std::string qname = qnameStream.str();
+    if (!qname.empty() && qname.back() == '.') {
+        qname.pop_back();// remove last '.'
+    }
+    result.push_back({"<QNAME>", qname});
+
+    // QTYPE and QCLASS
+    uint16_t qtype = ntohs(*reinterpret_cast<const uint16_t *>(ptr));
+    ptr += 2;
+    uint16_t qclass = ntohs(*reinterpret_cast<const uint16_t *>(ptr));
+    ptr += 2;
+
+    result.push_back({"<QTYPE>", std::to_string(qtype)});
+    result.push_back({"<QCLASS>", std::to_string(qclass)});
+
+    // NAME、TYPE、CLASS、TTL、RDLENGTH、RDATA
+    for (int i = 0; i < anCount; ++i) {
+        // skip NAME
+        while (true) {
+            uint8_t labelLen = *ptr++;
+            if (labelLen == 0) break;// domain name end
+            if ((labelLen & 0xC0) == 0xC0) {
+                // skip compression pointer (11)
+                ptr++;
+                break;
+            }
+            ptr += labelLen;
+        }
+
+        // TYPE
+        uint16_t rrType = ntohs(*reinterpret_cast<const uint16_t *>(ptr));
+        ptr += 2;
+        result.push_back({"<TYPE>", std::to_string(rrType)});
+
+        // CLASS
+        uint16_t rrClass = ntohs(*reinterpret_cast<const uint16_t *>(ptr));
+        ptr += 2;
+        result.push_back({"<CLASS>", std::to_string(rrClass)});
+
+        // TTL
+        uint32_t rrTTL = ntohl(*reinterpret_cast<const uint32_t *>(ptr));
+        ptr += 4;
+        result.push_back({"<TTL>", std::to_string(rrTTL)});
+
+        // RDLENGTH
+        uint16_t rdLength = ntohs(*reinterpret_cast<const uint16_t *>(ptr));
+        ptr += 2;
+
+        // RDATA
+        std::stringstream rdataStream;
+        for (int j = 0; j < rdLength; ++j) {
+            rdataStream << std::to_string(static_cast<uint8_t>(*ptr++)) << ".";
+        }
+        std::string rdata = rdataStream.str();
+        if (!rdata.empty() && rdata.back() == '.') {
+            rdata.pop_back();// remove last '.'
+        }
+        result.push_back({"<RDATA>", rdata});
+    }
+
+    return result;
+}
+
 PacketProcessor::PacketProcessor() {
     std::thread pt([&]() {
         process();
@@ -147,11 +249,11 @@ void PacketProcessor::process() {
                 if (packet.ip_header.protocol == IPPROTO_TCP) {
                     int src_port = ntohs(packet.tcp_header.src_port);
                     int dst_port = ntohs(packet.tcp_header.dest_port);
+                    packet_info.emplace_back(std::make_pair("<Source Port>", std::to_string(src_port)));
+                    packet_info.emplace_back(std::make_pair("<Destination Port>", std::to_string(dst_port)));
 
                     if (src_port == 80 || dst_port == 80) {
                         packet_info.emplace_back(std::make_pair("<Protocol>", "http"));
-                        packet_info.emplace_back(std::make_pair("<Source Port>", std::to_string(src_port)));
-                        packet_info.emplace_back(std::make_pair("<Destination Port>", std::to_string(dst_port)));
                         if (packet.payload_size) {
                             auto res = parse_http(packet.payload, packet.payload_size);
                             for (auto &r: res) {
@@ -160,31 +262,33 @@ void PacketProcessor::process() {
                         }
                     } else if (src_port == 443 || dst_port == 443) {
                         packet_info.emplace_back(std::make_pair("<Protocol>", "https"));
-                        packet_info.emplace_back(std::make_pair("<Source Port>", std::to_string(src_port)));
-                        packet_info.emplace_back(std::make_pair("<Destination Port>", std::to_string(dst_port)));
                     } else {
                         packet_info.emplace_back(std::make_pair("<Protocol>", "tcp"));
-                        packet_info.emplace_back(std::make_pair("<Source Port>", std::to_string(src_port)));
-                        packet_info.emplace_back(std::make_pair("<Destination Port>", std::to_string(dst_port)));
                     }
                 } else if (packet.ip_header.protocol == IPPROTO_UDP) {
                     int src_port = ntohs(packet.udp_header.src_port);
                     int dst_port = ntohs(packet.udp_header.dest_port);
+                    packet_info.emplace_back(std::make_pair("<Source Port>", std::to_string(src_port)));
+                    packet_info.emplace_back(std::make_pair("<Destination Port>", std::to_string(dst_port)));
 
                     if (src_port == 123 || dst_port == 123) {
                         packet_info.emplace_back(std::make_pair("<Protocol>", "ntp"));
-                        packet_info.emplace_back(std::make_pair("<Source Port>", std::to_string(src_port)));
-                        packet_info.emplace_back(std::make_pair("<Destination Port>", std::to_string(dst_port)));
                         if (packet.payload_size) {
                             auto res = parse_ntp(packet.payload);
                             for (auto &r: res) {
                                 packet_info.emplace_back(r);
                             }
                         }
+                    } else if (src_port == 53 || dst_port == 53) {
+                        packet_info.emplace_back(std::make_pair("<Protocol>", "dns"));
+                        if (packet.payload_size) {
+                            auto res = parse_dns(packet.payload);
+                            for (auto &r: res) {
+                                packet_info.emplace_back(r);
+                            }
+                        }
                     } else {
                         packet_info.emplace_back(std::make_pair("<Protocol>", "udp"));
-                        packet_info.emplace_back(std::make_pair("<Source Port>", std::to_string(src_port)));
-                        packet_info.emplace_back(std::make_pair("<Destination Port>", std::to_string(dst_port)));
                     }
                 } else if (packet.ip_header.protocol == IPPROTO_ICMP) {
                     // ICMP
